@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name           Masha
-// @version        1.0
+// @version        1.0.1
 // @namespace      http://twitter.com/dimarad
 // @description    Mark & Share
 // @author         Dmitry Rodiontsev
