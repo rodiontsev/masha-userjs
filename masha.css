@@ -9,7 +9,7 @@
 
 .user_selection_true a.txtsel_close, #txt_select_marker {
     display: none;
-    text-decoration: none;
+    text-decoration: none !important;
 }
 
 .user_selection_true.hover a.txtsel_close {
@@ -40,7 +40,7 @@
 .user_selection_true.hover a.txtsel_close {
     display: block;
 
-    color: #333;
+    color: #333 !important;
 
     background-color: #e6e6e6;
     background-repeat: no-repeat;
@@ -62,7 +62,7 @@
 #txt_select_marker {
     position: absolute;
 
-    color: #fff;
+    color: #fff !important;
     text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
 
     background-color: #57a957;

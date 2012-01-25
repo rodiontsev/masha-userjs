@@ -15,6 +15,9 @@ Version history:
 
 1.0 on 24/01/2012:
     - Initial version
+1.0.1 on 25/01/2012:
+    - Check if Masha already exists
+    - Check appropriate content type
 */
 
 (function() {
@@ -30,7 +33,18 @@ Version history:
         }
     };
 
-    log("Masha:init");
+    if (typeof unsafeWindow.MaSha == "function") {
+        log("Masha:Already exists");
+        return;
+    }
+
+    var contentType = unsafeWindow.document.contentType;
+    if (contentType != "text/html") {
+        log("Masha:Inappropriate content type: " + contentType);
+        return;
+    }
+
+    log("Masha:Init");
 
     var script = document.createElement("script");
     script.type = "text/javascript";
@@ -47,7 +61,7 @@ Version history:
         if(typeof unsafeWindow.MaSha == "undefined") {
             window.setTimeout(wait, 100);
         } else {
-            log("Masha:ready");
+            log("Masha:Ready");
 
             var style = GM_getResourceText("style");
             GM_addStyle(style);
