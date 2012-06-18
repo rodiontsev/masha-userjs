@@ -8,20 +8,28 @@
 
 (function(){
 
-var LocationHandler = function() {
-    this.set_hash = function(hash) {
+var LocationHandler = function() {}
+
+LocationHandler.prototype = {
+    setHash: function(hash) {
         window.location.hash = hash;
-    };
-    this.get_hash = function() {
+    },
+    getHash: function() {
         return window.location.hash;
-    };
-    this.add_hashchange = function(delegate) {
+    },
+    addHashchange: function(delegate) {
         addEvent(window, 'hashchange', delegate);
-    };
+    }
 };
 
 var MaSha = function(options) {
-    this.options = extend({}, MaSha.default_options, options);
+    options = options || {};
+
+    if ('select_message' in options){ options.selectMessage = options.select_message}
+    if ('enable_haschange' in options){ options.enableHaschange = options.enable_haschange}
+    if ('is_block' in options){ options.isBlock = options.is_block}
+
+    this.options = extend({}, MaSha.defaultOptions, options);
 
     extend(this, {
         counter: 0,
@@ -34,23 +42,24 @@ var MaSha = function(options) {
     this.init();
 };
 
-MaSha.version = "29.09.2011-12:18:53"; // filled automatically by hook
+MaSha.version = "22.05.2012-12:08:33"; // filled automatically by hook
+MaSha.LocationHandler = LocationHandler;
 
-MaSha.default_options = {
+MaSha.defaultOptions = {
     'regexp': "[^\\s,;:\u2013.!?<>\u2026\\n\u00a0\\*]+",
     'selectable': 'selectable-content',
     'marker': 'txtselect_marker',
     'ignored': null,
-    'select_message': null,
+    'selectMessage': null,
     'location': new LocationHandler(),
     'validate': false,
-    'enable_haschange': true,
+    'enableHaschange': true,
     'onMark': null,
     'onUnmark': null,
     'onHashRead': function(){
         var elem = firstWithClass(this.selectable, 'user_selection_true');
-        if(elem && !this.hash_was_read) {
-            this.hash_was_read = true;
+        if(elem && !this.hashWasRead) {
+            this.hashWasRead = true;
             window.setTimeout(function(){
                 var x = 0, y = 0;
                 while(elem){
@@ -63,7 +72,7 @@ MaSha.default_options = {
             }, 1);
         }
     },
-    'is_block': function(el){
+    'isBlock': function(el){
       return el.nodeName == 'BR' || inArray(getCompiledStyle(el, 'display'),
                                                ['inline', 'none']) == -1;
     }
@@ -95,10 +104,10 @@ MaSha.prototype = {
 
         if (!this.selectable) return;
 
-        this.is_ignored = this.construct_ignored(this.options.ignored);
+        this.isIgnored = this.constructIgnored(this.options.ignored);
     
-        if (this.options.select_message){
-            this.init_message();
+        if (this.options.selectMessage){
+            this.initMessage();
         }
         //cleanWhitespace(this.selectable);
     
@@ -106,57 +115,50 @@ MaSha.prototype = {
         this.enumerateElements();
     
 
-        var marker_coord;
-        addEvent(this.selectable, 'mouseup', function(e) {
-            /*
-             * Show the marker if any text selected
-             */
-            // XXX it's a question: bind to document or to this.selectable
-            // binding to document works better
 
-            marker_coord = getPageXY(e); // outside timeout function because of IE
-            window.setTimeout(show_marker, 1);
-        });
+        var hasTouch = ('ontouchstart' in window) || window.DocumentTouch && document instanceof DocumentTouch; // from modernizr
 
-        function show_marker(){
-            var regexp = new RegExp(this_.options.regexp, 'g');
-            var text = window.getSelection().toString();
+        if(!hasTouch){
+            addEvent(this.selectable, 'mouseup', function(e) {
+                /*
+                 * Show the marker if any text selected
+                 */
 
-            if (text == '' || !regexp.test(text)) return;
-            if (!this_.range_is_selectable()) return;
-
-            this_.marker.style.top = marker_coord.y - 33 + 'px';
-            this_.marker.style.left = marker_coord.x + 5 + 'px';
-            addClass(this_.marker, 'show');
-        }
-
-        function touch(e){
-            var touch = e.touches.item(0);
-            marker_coord = { x: touch.pageX, y: touch.pageY };
-        }
-
-        addEvent(this.selectable, 'touchmove', touch);
-        addEvent(this.selectable, 'touchstart', touch);
-        addEvent(this.selectable, 'touchend', function(){
-            window.setTimeout(function(){
-                var s = window.getSelection();
-                if(s.rangeCount){
-                    var rects = s.getRangeAt(0).getClientRects();
-                    var rect = rects[rects.length - 1];
-                    if(rect){
-                    marker_coord = {x: rect.left + rect.width + document.body.scrollLeft,
-                                    y: rect.top + rect.height/2 + document.body.scrollTop};
+                var markerCoord = getPageXY(e); // outside timeout function because of IE
+                window.setTimeout(function(){
+                    this_.showMarker(markerCoord);
+                }, 1);
+            });
+        } else {
+            addEvent(this.selectable, 'touchend', function(){
+                window.setTimeout(function(){
+                    var s = window.getSelection();
+                    if(s.rangeCount){
+                        var rects = s.getRangeAt(0).getClientRects();
+                        var rect = rects[rects.length - 1];
+                        if(rect){
+                        var markerCoord = {x: rect.left + rect.width + document.body.scrollLeft,
+                                           y: rect.top + rect.height/2 + document.body.scrollTop};
+                        }
+                        this_.showMarker(markerCoord);
                     }
-                }
-                show_marker();
-            }, 1);
-        });
+                }, 1);
+            });
+        }
 
-        function marker_click(e){
+        function markerClick(e){
             preventDefault(e);
             stopEvent(e);
+
+            var target = (e.target || e.srcElement);
+
+            if (hasClass(this, 'masha-marker-bar')){
+                if (!hasClass(target, 'masha-social') && !hasClass(target, 'masha-marker')){
+                    return;
+                }
+            }
             removeClass(this_.marker, 'show');
-            if (!this_.range_is_selectable()){
+            if (!this_.rangeIsSelectable()){
                 return;
             }
 
@@ -166,13 +168,21 @@ MaSha.prototype = {
             if (this_.options.onMark){
                 this_.options.onMark.call(this_);
             }
-            if (this_.options.select_message){
-                this_._show_message();
+            if (this_.options.selectMessage){
+                this_._showMessage();
+            }
+
+            if (hasClass(target, 'masha-social') ){
+                var pattern = target.getAttribute('data-pattern');
+                if (pattern){
+                    var new_url = pattern.replace('{url}', encodeURIComponent(window.location.toString()));
+                    this_.openShareWindow(new_url);
+                }
             }
         }
     
-        addEvent(this.marker, 'click', marker_click);
-        addEvent(this.marker, 'touchend', marker_click);
+        addEvent(this.marker, 'click', markerClick);
+        addEvent(this.marker, 'touchend', markerClick);
 
         addEvent(document, 'click', function(e){
             var target = e.target || e.srcElement;
@@ -181,14 +191,14 @@ MaSha.prototype = {
             }
         });
 
-        if(this.options.enable_haschange){
-            this.options.location.add_hashchange(function(){
-                if(this_.last_hash != this_.options.location.get_hash()){
+        if(this.options.enableHaschange){
+            this.options.location.addHashchange(function(){
+                if(this_.lastHash != this_.options.location.getHash()){
                     var numclasses = [];
                     for(var k in this_.ranges) {
                         numclasses.push(k);
                     }
-                    this_.delete_selections(numclasses);
+                    this_.deleteSelections(numclasses);
                     this_.readHash();
                 }
             });
@@ -197,10 +207,59 @@ MaSha.prototype = {
         this.readHash();
     },
 
+    /*
+     * Interface functions, safe to redefine
+     */
+    openShareWindow: function(url){
+        window.open(url, '', 'status=no,toolbar=no,menubar=no,width=800,height=400');
+    },
+    getMarkerCoords: function(marker, markerCoord){
+        return {'x': markerCoord.x + 5, 'y':markerCoord.y - 33};
+    },
+    getPositionChecksum: function(wordsIterator){
+        /*
+         * Used in validation. This method accepts word sequence iterator (a function returning 
+         * the next word of sequence on each call or null if words are) and returns a string checksum. 
+         * The getPositionChecksum method is called twice for each range: one for start position and 
+         * one for end position (with reversed iterator).
+         * 
+         * The checksum is included into hash and it is checked on page load. If calculated checksum 
+         * doesn't one from url, the selection is not restored.
+         */
+        var sum = '';
+        for (var i=0; i<3;i++){
+            var part = (wordsIterator() || '').charAt(0);
+            if (part){
+                var allowedChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890';
+                var integer = part.charCodeAt(0) % allowedChars.length;
+                part = allowedChars.charAt(integer);
+            }
+            sum += part;
+        }
+        return sum;
+    },
+
+    /*
+     * Non-interface functions
+     */
+
+    showMarker: function(markerCoord){
+        var regexp = new RegExp(this.options.regexp, 'g');
+        var text = window.getSelection().toString();
+
+        if (text == '' || !regexp.test(text)) return;
+        if (!this.rangeIsSelectable()) return;
+
+        var coords = this.getMarkerCoords(this.marker, markerCoord);
+
+        this.marker.style.top = coords.y + 'px';
+        this.marker.style.left = coords.x + 'px';
+        addClass(this.marker, 'show');
+    },
+
+
     // XXX sort methods logically
-    // XXX choose btw camelCase and underscores!
-    delete_selections: function(numclasses){
-        var ranges = [];
+    deleteSelections: function(numclasses){
         for(var i=numclasses.length; i--;){
             var numclass = numclasses[i];
             var spans = byClassName(this.selectable, numclass);
@@ -208,7 +267,6 @@ MaSha.prototype = {
             closewrap.parentNode.removeChild(closewrap);
 
             this.removeTextSelection(spans);
-            ranges.push(this.ranges[numclass]);
             delete this.ranges[numclass];
         }
     },
@@ -223,7 +281,7 @@ MaSha.prototype = {
         }
     },
 
-    is_internal: function(node){
+    isInternal: function(node){
         while (node.parentNode){
             if (node == this.selectable){
                 return true;
@@ -235,7 +293,7 @@ MaSha.prototype = {
 
     _siblingNode: function(cont, prevnext, firstlast, offs, regexp){
         regexp = regexp || this.regexp;
-        while (cont.parentNode && this.is_internal(cont)){
+        while (cont.parentNode && this.isInternal(cont)){
             while (cont[prevnext + 'Sibling']){
                 cont = cont[prevnext + 'Sibling'];
                 while (cont.nodeType == 1 && cont.childNodes.length){
@@ -292,10 +350,10 @@ MaSha.prototype = {
         }
 
         var node = container;
-        var selection_index = this.getNum(container);
-        var first_node = this.getFirstTextNode(selection_index);
+        var selectionIndex = this.getNum(container);
+        var firstNode = this.getFirstTextNode(selectionIndex);
 
-        while(node && node != first_node){
+        while(node && node != firstNode){
             node = this.prevNode(node, /.*/)._container;
             wcount += this.wordCount(node);
             //node = node? node.container: null;
@@ -310,7 +368,7 @@ MaSha.prototype = {
             n = n.previousSibling;
         }
         */
-        return selection_index + ':' + wcount;
+        return selectionIndex + ':' + wcount;
     },
 
     symbols: function(_node){
@@ -332,9 +390,9 @@ MaSha.prototype = {
         for (key in this.ranges) { 
             hashAr.push(this.ranges[key]);
         }
-        var new_hash = '#sel='+hashAr.join(';');
-        this.last_hash = new_hash;
-        this.options.location.set_hash(new_hash);
+        var newHash = '#sel='+hashAr.join(';');
+        this.lastHash = newHash;
+        this.options.location.setHash(newHash);
     },
 
     readHash: function(){
@@ -355,13 +413,13 @@ MaSha.prototype = {
     },
 
     splittedHash: function(){
-        var hash = this.options.location.get_hash();
+        var hash = this.options.location.getHash();
         if (!hash) return null;
     
         hash = hash.replace(/^#/, '').replace(/;+$/, '');
         //
         var pair = '';
-        if(! /^sel\=(?:\d+\:\d+(?:\:[^:;]*)?\,\d+\:\d+(?:\:[^:;]*)?;)*\d+\:\d+(?:\:[^:;]*)?\,\d+\:\d+(?:\:[^:;]*)?$/.test(hash)) return null;
+        if(! /^sel\=(?:\d+\:\d+(?:\:[^:;]*)?\,|%2C\d+\:\d+(?:\:[^:;]*)?;)*\d+\:\d+(?:\:[^:;]*)?\,|%2C\d+\:\d+(?:\:[^:;]*)?$/.test(hash)) return null;
 
         hash = hash.substring(4, hash.length);
         return hash.split(';');
@@ -378,7 +436,7 @@ MaSha.prototype = {
     },
 
     deserializeRange: function(serialized){
-        var result = /^([^,]+),([^,]+)$/.exec(serialized);
+        var result = /^([0-9A-Za-z:]+)(?:,|%2C)([0-9A-Za-z:]+)$/.exec(serialized);
         var bits1 = result[1].split(":");
         var bits2 = result[2].split(":");
         // XXX this if is ugly
@@ -421,16 +479,6 @@ MaSha.prototype = {
         sum1 = this.getPositionChecksum(range.getWordIterator(this.regexp));
         sum2 = this.getPositionChecksum(range.getWordIterator(this.regexp, true));
         return [sum1, sum2];
-    },
-
-    getPositionChecksum: function(words_iterator){
-        /*
-         * Should be impemented by user
-         * We don't want to include validation algorythm, because we 
-         * didn't invent The Best Algorythm Ever yet. :(
-         * And we don't want to force users to use bad algorythms.
-         */
-        return '';
     },
 
     deserializePosition: function(bits, pos){
@@ -492,11 +540,11 @@ MaSha.prototype = {
     checkPosition: function(range, offset, container, position) {
         var this_ = this, newdata;
 
-        function is_word(str){
+        function isWord(str){
             return str.match(this_.regexp) != null;
         }
 
-        function is_not_word(str){
+        function isNotWord(str){
             return str.match(this_.regexp) == null;
         }
 
@@ -525,9 +573,12 @@ MaSha.prototype = {
                 container = container.childNodes[offset];
                 offset = 0;
             } else {
-                container_txtnodes = textNodes(container); // XXX lastTextNode
-                container = container_txtnodes[container_txtnodes.length-1];
-                offset = container.data.length;
+                // XXX what is the case for this code?
+                var containerTextNodes = textNodes(container); // XXX lastTextNode
+                if (containerTextNodes.length){ // this if fixes regressionSelectionStartsAtImage test
+                    container = containerTextNodes[containerTextNodes.length-1];
+                    offset = container.data.length;
+                }
             }
         }
 
@@ -545,8 +596,8 @@ MaSha.prototype = {
             }
 
             // Important! Shorten the selection first and then extend it!
-            offset = stepForward(container, offset, is_not_word);
-            offset = stepBack(container, offset, is_word);
+            offset = stepForward(container, offset, isNotWord);
+            offset = stepBack(container, offset, isWord);
             
             range.setStart(container, offset);
         }
@@ -555,8 +606,8 @@ MaSha.prototype = {
             if (container.nodeType == 1 && trim(textContent(container)) != '' && offset != 0) {
                 container = container.childNodes[range.endOffset-1];
 
-                container_txtnodes = textNodes(container); // XXX lastTextNode
-                container = container_txtnodes[container_txtnodes.length-1];
+                var containerTextNodes = textNodes(container); // XXX lastTextNode
+                container = containerTextNodes[containerTextNodes.length-1];
 
                 offset = container.data.length;
             }
@@ -569,8 +620,8 @@ MaSha.prototype = {
             }
             
             // Important! Shorten the selection first and then extend it!
-            offset = stepBack(container, offset, is_not_word);
-            offset = stepForward(container, offset, is_word);
+            offset = stepBack(container, offset, isNotWord);
+            offset = stepForward(container, offset, isWord);
 
             range.setEnd(container, offset);
         }
@@ -693,14 +744,14 @@ MaSha.prototype = {
         if (last){
             last = /(num\d+)(?:$| )/.exec(last.className)[1];
             var tnodes = textNodes(lastWithClass(this.selectable, last)); // XXX lastTextNode
-            var last_node = tnodes[tnodes.length-1];
-            range.setEnd(last_node, last_node.length);
+            var lastNode = tnodes[tnodes.length-1];
+            range.setEnd(lastNode, lastNode.length);
         }
         if (merges.length){
             // this breaks selection, so we need to dump a range and restore it after DOM changes
             var sc = range.startContainer, so=range.startOffset,
                 ec = range.endContainer, eo = range.endOffset;
-            this.delete_selections(merges);
+            this.deleteSelections(merges);
             range.setStart(sc, so);
             range.setEnd(ec, eo);
         }
@@ -757,7 +808,7 @@ MaSha.prototype = {
         closer_span.appendChild(closer);
         addEvent(closer, 'click', function(e){
             preventDefault(e);
-            this_.delete_selections([class_name]);
+            this_.deleteSelections([class_name]);
             this_.updateHash();
             
             if (this_.options.onUnmark){
@@ -779,15 +830,15 @@ MaSha.prototype = {
         // marks first text node in each visual block element:
         // inserts a span with special class and ID before it
         var node = this.selectable;
-        var captureCount=0;
+        MaSha.captureCount = MaSha.captureCount || 0;
         var this_ = this;
 
         enumerate(node);
 
         function enumerate(node){
             var children = node.childNodes;
-            var has_blocks = false;
-            var block_started = false;
+            var hasBlocks = false;
+            var blockStarted = false;
             
             var len;
             for (var idx=0; idx<children.length; ++idx) {
@@ -797,40 +848,40 @@ MaSha.prototype = {
                     // ..if it is a textnode that is logically empty, ignore it
                     continue;
                 } else if (nodeType==3) {
-                    if (!block_started){
+                    if (!blockStarted){
                         // remember the block
-                        captureCount++;
+                        MaSha.captureCount++;
                         var index_span = document.createElement('span');
                         // XXX prefix all class and id attributes with "masha"
-                        index_span.id = 'selection_index' + captureCount;
+                        index_span.id = 'selection_index' + MaSha.captureCount;
                         index_span.className = 'selection_index';
                         child.parentNode.insertBefore(index_span, child);
 
                         idx++;
-                        this_.blocks[captureCount] = child;
-                        has_blocks = block_started = true;
+                        this_.blocks[MaSha.captureCount] = child;
+                        hasBlocks = blockStarted = true;
                     }
                 } else if (nodeType==1) {
                     // XXX check if this is correct
-                    if (!this_.is_ignored(child)){
-                        var is_block = this_.options.is_block(child);
+                    if (!this_.isIgnored(child)){
+                        var isBlock = this_.options.isBlock(child);
 		      
-                        if (is_block){
-                            var child_has_blocks = enumerate(child);
-                            has_blocks = has_blocks || child_has_blocks;
-                            block_started = false;
-                        } else if (!block_started) {
-                            block_started = enumerate(child);
-                            has_blocks = has_blocks || block_started;
+                        if (isBlock){
+                            var childHasBlocks = enumerate(child);
+                            hasBlocks = hasBlocks || childHasBlocks;
+                            blockStarted = false;
+                        } else if (!blockStarted) {
+                            blockStarted = enumerate(child);
+                            hasBlocks = hasBlocks || blockStarted;
                         }
                     }
                 }
             }
-            return has_blocks;
+            return hasBlocks;
         }
     },
-    isFirstTextNode: function(text_node){
-        var prevs = [text_node.previousSibling, text_node.parentNode.previousSibling];
+    isFirstTextNode: function(textNode){
+        var prevs = [textNode.previousSibling, textNode.parentNode.previousSibling];
         for (var i=prevs.length;i--;){
             if (prevs[i] && prevs[i].nodeType == 1 && prevs[i].className == 'selection_index'){
                 return true;
@@ -866,7 +917,7 @@ MaSha.prototype = {
         return null;
     },
 
-    construct_ignored: function(selector){
+    constructIgnored: function(selector){
         if (typeof selector == 'function'){
             return selector;
         } else if (typeof selector == 'string'){
@@ -902,16 +953,16 @@ MaSha.prototype = {
         }
     },
 
-    range_is_selectable: function(){
-        var node, first_node, last_node, first=true;
+    rangeIsSelectable: function(){
+        var node, firstNode, lastNode, first=true;
         var range = this.getFirstRange();
         if (!range) { return false; }
         var iterator = range.getElementIterator();
         while ((node = iterator())){
             if (node.nodeType == 3 && node.data.match(this.regexp) != null){
                 // first and last TEXT nodes
-                first_node = first_node || node;
-                last_node = node;
+                firstNode = firstNode || node;
+                lastNode = node;
             }
             // We need to check first element. Text nodes are not checked, so we replace
             // it for it's parent.
@@ -923,7 +974,7 @@ MaSha.prototype = {
                 // till selectable are not ignored
                 var iter_node = node;
                 while (iter_node != this.selectable && iter_node.parentNode){
-                    if (this.is_ignored(iter_node)){
+                    if (this.isIgnored(iter_node)){
                         return false;
                     }
                     iter_node = iter_node.parentNode;
@@ -931,8 +982,8 @@ MaSha.prototype = {
                 if (iter_node != this.selectable){ return false; }
             }
         }
-        var first_selection = parentWithClass(first_node, 'user_selection_true');
-        var last_selection = parentWithClass(last_node, 'user_selection_true');
+        var first_selection = parentWithClass(firstNode, 'user_selection_true');
+        var last_selection = parentWithClass(lastNode, 'user_selection_true');
         if (first_selection && last_selection){
             var reg = /(?:^| )(num\d+)(?:$| )/;
             return (reg.exec(first_selection.className)[1] != 
@@ -941,189 +992,270 @@ MaSha.prototype = {
         return true;
     },
 
-    // message.js
-    init_message: function() {
+    /*
+     * message.js - popup message
+     */
+    initMessage: function() {
         var this_ = this;
 
-        this.msg = (typeof this.options.select_message == 'string'?
-                    document.getElementById(this.options.select_message):
-                    this.options.select_message);
-        this.close_button = this.get_close_button();
+        this.msg = (typeof this.options.selectMessage == 'string'?
+                    document.getElementById(this.options.selectMessage):
+                    this.options.selectMessage);
+        this.close_button = this.getCloseButton();
         this.msg_autoclose = null;
 
         addEvent(this.close_button, 'click', function(e){
             preventDefault(e);
-            this_.hide_message();
-            this_.save_message_closed();
+            this_.hideMessage();
+            this_.saveMessageClosed();
             clearTimeout(this_.msg_autoclose);
         });
     },
 
-    get_close_button: function(){
-        // XXX
+    /* 
+     * message.js pubplic methods, safe to redefine
+     */
+
+    showMessage: function(){
+        addClass(this.msg, 'show');
+    },
+    hideMessage: function(){
+        removeClass(this.msg, 'show');
+    },
+    getCloseButton: function(){
         return this.msg.getElementsByTagName('a')[0];
     },
-    get_message_closed: function(){
+
+    /*
+     * non-public functions
+     */
+
+    getMessageClosed: function(){
         if (window.localStorage){
             return !!localStorage.masha_warning;
         } else {
             return !!document.cookie.match(/(?:^|;)\s*masha-warning=/);
         }
     },
-    save_message_closed: function(){
+    saveMessageClosed: function(){
         if (window.localStorage){
             localStorage.masha_warning = 'true';
         } else {
             // XXX need to be tested under IE
-            if (!this.get_closed()){
+            if (!this.getMessageClosed()){
                 document.cookie += '; masha-warning=true';
             }
         }
     },
-    _show_message: function(){
+
+    _showMessage: function(){
         var this_ = this;
-        if (this.get_message_closed()) return;
+        if (this.getMessageClosed()) return;
     
-        this.show_message();
+        this.showMessage();
     
         clearTimeout(this.msg_autoclose);
         this.msg_autoclose = setTimeout(function(){
-            this_.hide_message();
+            this_.hideMessage();
         }, 10000);
+    }
+
+};
+
+/*
+ * Range object
+ */
+
+// support browsers and IE, using ierange with Range exposed
+// XXX why this doesn't work without Range exposed
+var Range = window.Range || document.createRange().constructor;
+
+Range.prototype.splitBoundaries = function() {
+    var sc = this.startContainer,
+        so = this.startOffset,
+        ec = this.endContainer,
+        eo = this.endOffset;
+    var startEndSame = (sc === ec);
+
+    if (ec.nodeType == 3 && eo < ec.length) {
+        ec.splitText(eo);
+    }
+
+    if (sc.nodeType == 3 && so > 0) {
+        sc = sc.splitText(so);
+        if (startEndSame) {
+            eo -= so;
+            ec = sc;
+        }
+        so = 0;
+    }
+    this.setStart(sc, so);
+    this.setEnd(ec, eo);
+};
+
+Range.prototype.getTextNodes = function() {
+    var iterator = this.getElementIterator();
+    var textNodes = [], node;
+    while ((node = iterator())){
+        // XXX was there a reason to check for empty string?
+        // with this check selecting two sibling words separately
+        // and then selecting them both in one range doesn't work properly
+        if (node.nodeType == 3){// && !node.data.match(/^\s*$/)){
+            textNodes.push(node);
+        }
+    }
+    return textNodes;
+};
+
+function elementIterator(parent, cont, end, reversed){
+    reversed = !!reversed;
+    cont = cont || parent[reversed? 'lastChild' : 'firstChild'];
+    var finished = !cont;
+    var up = false;
+    
+    function next(){
+        if (finished) {return null;} 
+        var result = cont;
+        if (cont.childNodes && cont.childNodes.length && !up){
+            cont = cont[reversed? 'lastChild' : 'firstChild'];
+        } else if (cont[reversed? 'previousSibling' : 'nextSibling']){
+            cont = cont[reversed? 'previousSibling' : 'nextSibling'];
+            up = false;
+        } else if (cont.parentNode){
+            cont = cont.parentNode;
+            if (cont === parent){ finished = true; }
+            up = true;
+            next();
+        }
+        if (result === end) { finished = true; }
+        return result;
+    }
+    return next;
+}
+
+Range.prototype.getElementIterator = function(reversed){
+    if (reversed) {
+        return elementIterator(null, this.endContainer, this.startContainer, true);
+    } else {
+        return elementIterator(null, this.startContainer, this.endContainer);
+    }
+};
+Range.prototype.getWordIterator = function(regexp, reversed){
+    var elem_iter = this.getElementIterator(reversed);
+    var node;
+    var counter_aim = 0, i = 0;
+    var finished = false, match, this_ = this;
+    function next(){
+        if(counter_aim == i && !finished){
+            do{
+                do{
+                    node = elem_iter();
+                } while(node && node.nodeType != 3)
+                finished = !node;
+                if (!finished){
+                    value = node.nodeValue;
+                    if (node == this_.endContainer){
+                        value = value.substr(0, this_.endOffset);
+                    }
+                    if (node == this_.startContainer){
+                        value = value.substr(this_.startOffset);
+                    }
+                    match = value.match(regexp);
+                }
+            } while (node && !match);
+            if (match){
+                counter_aim = reversed? 0: match.length - 1;
+                i = reversed? match.length - 1: 0;
+            }
+        } else {
+            if (reversed) {i--;} else {i++;}
+        }
+        if (finished) { return null; }
+        return match[i];
+    }
+    return next;
+};
+
+Range.prototype.wrapSelection = function(className){
+    this.splitBoundaries();
+    var textNodes = this.getTextNodes();
+    for (var i=textNodes.length; i--;){
+        // XXX wrap sibling text nodes together
+        var span = document.createElement('span');
+        span.className = className;
+        textNodes[i].parentNode.insertBefore(span, textNodes[i]);
+        span.appendChild(textNodes[i]);
+    }
+};
+
+/* 
+ * MaSha Multi 
+ */
+// XXX here on in separate file?
+
+var MultiLocationHandler = function(prefix) {
+    this.prefix = prefix;
+};
+
+MultiLocationHandler.prototype = {
+    setHash: function(hash) {
+        hash = hash.replace('sel', this.prefix).replace(/^#/, '');
+
+        if (hash.length == this.prefix.length + 1){ hash = '' }
+
+        var old_hash = this.getHashPart();
+        var full_hash = window.location.hash.replace(/^#\|?/, '');
+        if (old_hash){
+            var newHash = window.location.hash.replace(old_hash, hash);
+        } else {
+            var newHash = window.location.hash + '|' + hash;
+        }
+        newHash = '#' + newHash.replace('||', '').replace(/^#?\|?|\|$/g, '');
+        window.location.hash = newHash;
     },
-    show_message: function(){
-        addClass(this.msg, 'show');
+    addHashchange: MaSha.LocationHandler.prototype.addHashchange,
+    getHashPart: function() {
+        var parts = window.location.hash.replace(/^#\|?/, '').split(/\||%7C/);
+        var self_part = null;
+        for (var i=0; i< parts.length; i++){
+            if (parts[i].substr(0, this.prefix.length + 1) == this.prefix + '='){
+                return parts[i];
+            }
+        }
+        return '';
     },
-    hide_message: function(){
-        removeClass(this.msg, 'show');
+    getHash: function() {
+        return this.getHashPart().replace(this.prefix, 'sel');
     }
 };
 
 
-    // support browsers and IE, using ierange with Range exposed
-    // XXX why this doesn't work without Range exposed
-    var Range = window.Range || document.createRange().constructor;
+var MultiMaSha = function(elements, getPrefix, options){
 
-    Range.prototype.splitBoundaries = function() {
-        var sc = this.startContainer,
-            so = this.startOffset,
-            ec = this.endContainer,
-            eo = this.endOffset;
-        var startEndSame = (sc === ec);
+  getPrefix = getPrefix || function(element){
+      return element.id;
+  }
 
-        if (ec.nodeType == 3 && eo < ec.length) {
-            ec.splitText(eo);
-        }
+  for (var i=0; i< elements.length; i++){
+      var element = elements[i];
+      var prefix = getPrefix(element);
 
-        if (sc.nodeType == 3 && so > 0) {
-            sc = sc.splitText(so);
-            if (startEndSame) {
-                eo -= so;
-                ec = sc;
-            }
-            so = 0;
-        }
-        this.setStart(sc, so);
-        this.setEnd(ec, eo);
-    };
+      if (prefix) {
+          var initOptions = extend({}, options || {}, {
+              'selectable': element,
+              'location': new MultiLocationHandler(prefix)
+          });
+          
+          new MaSha(initOptions);
+      }
+  }
+}
 
-    Range.prototype.getTextNodes = function() {
-        var iterator = this.getElementIterator();
-        var textNodes = [], node;
-        while ((node = iterator())){
-            // XXX was there a reason to check for empty string?
-            // with this check selecting two sibling words separately
-            // and then selecting them both in one range doesn't work properly
-            if (node.nodeType == 3){// && !node.data.match(/^\s*$/)){
-                textNodes.push(node);
-            }
-        }
-        return textNodes;
-    };
 
-    function elementIterator(parent, cont, end, reversed){
-        reversed = !!reversed;
-        cont = cont || parent[reversed? 'lastChild' : 'firstChild'];
-        var finished = !cont;
-        var up = false;
-        
-        function next(){
-            if (finished) {return null;} 
-            var result = cont;
-            if (cont.childNodes && cont.childNodes.length && !up){
-                cont = cont[reversed? 'lastChild' : 'firstChild'];
-            } else if (cont[reversed? 'previousSibling' : 'nextSibling']){
-                cont = cont[reversed? 'previousSibling' : 'nextSibling'];
-                up = false;
-            } else if (cont.parentNode){
-                cont = cont.parentNode;
-                if (cont === parent){ finished = true; }
-                up = true;
-                next();
-            }
-            if (result === end) { finished = true; }
-            return result;
-        }
-        return next;
-    }
+/*
+ * Exposing
+ */
 
-    Range.prototype.getElementIterator = function(reversed){
-        if (reversed) {
-            return elementIterator(null, this.endContainer, this.startContainer, true);
-        } else {
-            return elementIterator(null, this.startContainer, this.endContainer);
-        }
-    };
-    Range.prototype.getWordIterator = function(regexp, reversed){
-        var elem_iter = this.getElementIterator(reversed);
-        var node;
-        var counter_aim = 0, i = 0;
-        var finished = false, match, this_ = this;
-        function next(){
-            if(counter_aim == i && !finished){
-                do{
-                    do{
-                        node = elem_iter();
-                    } while(node && node.nodeType != 3)
-                    finished = !node;
-                    if (!finished){
-                        value = node.nodeValue;
-                        if (node == this_.endContainer){
-                            value = value.substr(0, this_.endOffset);
-                        }
-                        if (node == this_.startContainer){
-                            value = value.substr(this_.startOffset);
-                        }
-                        match = value.match(regexp);
-                    }
-                } while (node && !match);
-                if (match){
-                    counter_aim = reversed? 0: match.length - 1;
-                    i = reversed? match.length - 1: 0;
-                }
-            } else {
-                if (reversed) {i--;} else {i++;}
-            }
-            if (finished) { return null; }
-            return match[i];
-        }
-        return next;
-    };
-
-    Range.prototype.wrapSelection = function(className){
-        this.splitBoundaries();
-        var textNodes = this.getTextNodes();
-        for (var i=textNodes.length; i--;){
-            // XXX wrap sibling text nodes together
-            var span = document.createElement('span');
-            span.className = className;
-            textNodes[i].parentNode.insertBefore(span, textNodes[i]);
-            span.appendChild(textNodes[i]);
-        }
-    };
-
-// exposing
-MaSha.LocationHandler = LocationHandler;
 window.MaSha = MaSha;
 
 if (window.jQuery){
@@ -1133,19 +1265,12 @@ if (window.jQuery){
         return new MaSha(options);
     };
 }
+window.MultiMaSha = MultiMaSha;
 
-// Shortcuts
-//function cleanWhitespace(elem) {
-    // Important! Commented since problems with sticking tags (see test cases)
-    // XXX Is this needed? According n0s, it's done for fix problems with whitespace nodes in IE
-    // XXX Additionaly this will remove nodes with &nbsp; in browsers
-    /*var node, iter = elementIterator(elem);
-    while (node = iter()){
-        if (node.nodeType == 3 && !/\S/.test(node.nodeValue)) {
-            node.parentNode.removeChild(node);
-        }
-    }*/
-//}
+
+/*
+ * Shortcuts
+ */
 
 function extend(obj){
     for(var i=1; i<arguments.length; i++){
@@ -1162,17 +1287,17 @@ function trim(text) {
 
 function getCompiledStyle(elem, strCssRule){
     // copypasted from Internets
-	var strValue = "";
-	if(document.defaultView && document.defaultView.getComputedStyle){
-		strValue = document.defaultView.getComputedStyle(elem, "").getPropertyValue(strCssRule);
-	}
-	else if(elem.currentStyle){
-		strCssRule = strCssRule.replace(/\-(\w)/g, function (strMatch, p1){
-			return p1.toUpperCase();
-		});
-		strValue = elem.currentStyle[strCssRule];
-	}
-	return strValue;
+    var strValue = "";
+    if(document.defaultView && document.defaultView.getComputedStyle){
+        strValue = document.defaultView.getComputedStyle(elem, "").getPropertyValue(strCssRule);
+    }
+    else if(elem.currentStyle){
+        strCssRule = strCssRule.replace(/\-(\w)/g, function (strMatch, p1){
+            return p1.toUpperCase();
+        });
+        strValue = elem.currentStyle[strCssRule];
+    }
+    return strValue;
 }
 
 function textContent(elem){
@@ -1276,11 +1401,8 @@ function preventDefault(e){
     else { e.returnValue = false; }
 }
 function stopEvent(e){
-  if (e.stopPropagation) {
-    e.stopPropagation();
-  } else {
-    e.cancelBubble = true;
-  } 
+    if (e.stopPropagation) { e.stopPropagation(); } 
+    else { e.cancelBubble = true; } 
 }
 function getPageXY(e){
     // from jQuery

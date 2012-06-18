@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name           Masha
-// @version        1.0.1
-// @namespace      http://twitter.com/dimarad
+// @version        1.1
+// @namespace      http://twitter.com/rodiontsev
 // @description    Mark & Share
 // @author         Dmitry Rodiontsev
 // @include        http://*
